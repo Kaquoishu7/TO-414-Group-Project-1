@@ -88,35 +88,76 @@ library(caret)
 library(gmodels)
 ```
 
+# Step 1: K-Means Clustering
 ```{r}
-test_indices = 1:round(nrow(tele_norm) / 5)
-tele_train = tele_norm[-test_indices,]
-tele_test = tele_norm[test_indices,]
+# custom normalization function
+
+kmeans_tele = telemm # Make a copy
+
+kmeans_tele$y = NULL # Remove y column
+
+kmeans_tele_scaled = as.data.frame(lapply(kmeans_tele, scale))
+
+# Run K-Means Clusters
+set.seed(0)
+tele_clusters <- kmeans(kmeans_tele_scaled, 5)
+```
+
+## Look at K-Means Data
+
+```{r}
+str(tele_clusters)
+
+tele_clusters$size
+tele_clusters$centers
+```
+
+## Aggregate Data
+
+```{r}
+# telemm is the cleaned up tele data with all factors converted
+# to dummies (e.g. y gets turned into yyes)
+telemm$cluster = tele_clusters$cluster
+clusteredSuccessRates =
+  aggregate(data = telemm, yyes ~ cluster, mean)
+clusteredSuccessRates
+tele_clusters$size
+
+# Weighted average to verify total success rate is ~11%
+weighted.mean(clusteredSuccessRates$yyes, tele_clusters$size)
+```
+
+
+
+```{r}
+# test_indices = 1:round(nrow(tele_norm) / 5)
+# tele_train = tele_norm[-test_indices,]
+# tele_test = tele_norm[test_indices,]
 ```
 
 
 ```{r, cache = TRUE}
-answerModel = neuralnet(formula = yyes ~ .,
-                        data = tele_train,
-                        hidden = 7)
+# answerModel = neuralnet(formula = yyes ~ .,
+#                         data = tele_train,
+#                         hidden = 7)
 ```
 
 ```{r}
-plot(answerModel)
+#plot(answerModel)
 ```
 
 ```{r}
-predictionANN = predict(answerModel, newdata = tele_test,
-                        type = "response")
-
-predictionANN = ifelse(predictionANN >= 0.25, 1, 0)
-
-tele_label = tele_test[1:nrow(tele_test), "yyes"]
-
-CrossTable(x = tele_label, y = predictionANN, 
-           prop.chisq=FALSE)
-
-confusionMatrix(as.factor(predictionANN), as.factor(tele_label))
+# predictionANN = predict(answerModel, newdata = tele_test,
+#                         type = "response")
+# 
+# predictionANN = ifelse(predictionANN >= 0.25, 1, 0)
+# 
+# tele_label = tele_test[1:nrow(tele_test), "yyes"]
+# 
+# CrossTable(x = tele_label, y = predictionANN, 
+#            prop.chisq=FALSE)
+# 
+# confusionMatrix(as.factor(predictionANN), as.factor(tele_label))
 
 ```
 
