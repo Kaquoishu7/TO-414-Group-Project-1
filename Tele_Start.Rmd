@@ -1,7 +1,7 @@
 ---
-title: "HW6 Telemarketing"
-author: "Enter Your Name Here"
-date: "3/22/2020"
+title: "Group 1 Project 1: Telemarketing"
+author: "Aakash Bharat, Maegan DeSmet, Ishan Goel, Doyeon Kim, Raamiz Qureshi"
+date: "10/22/2022"
 output:
   html_document:
     toc: true
@@ -59,28 +59,6 @@ str(tele_norm)
 ```
 
 
-## Getting Train and Test Samples
-
-```{r}
-# # Selects 10000 random rows for test data
-# set.seed(12345)
-# test_set <- sample(1:nrow(tele_norm), 10000)
-# # Depending on R-version and computer, different rows may be selected.
-# # If that happens, results are different.
-# 
-# # Create a train set and test set
-# #First the predictors - all columns except the yyes column
-# tele_train <- tele_norm[-test_set, -match("yyes",names(tele_norm))]
-# tele_test <- tele_norm[test_set, -match("yyes",names(tele_norm))]
-# 
-# #Now the response (aka Labels) - only the yyes column
-# tele_train_labels <- tele_norm[-test_set, "yyes"]
-# tele_test_labels <- tele_norm[test_set, "yyes"]
-
-```
-
-> Now you are ready to build your ANN model. Feel free to modify the data load, cleaning and preparation code above as per your preference.
-
 ```{r}
 library(neuralnet)
 library(class)
@@ -118,6 +96,8 @@ tele_clusters$centers
 # telemm is the cleaned up tele data with all factors converted
 # to dummies (e.g. y gets turned into yyes)
 telemm$cluster = tele_clusters$cluster
+tele$cluster = tele_clusters$cluster
+tele_norm$cluster = tele_clusters$cluster
 clusteredSuccessRates =
   aggregate(data = telemm, yyes ~ cluster, mean)
 clusteredSuccessRates
@@ -127,37 +107,304 @@ tele_clusters$size
 weighted.mean(clusteredSuccessRates$yyes, tele_clusters$size)
 ```
 
-
+## Create Train and Test Data
 
 ```{r}
-# test_indices = 1:round(nrow(tele_norm) / 5)
-# tele_train = tele_norm[-test_indices,]
-# tele_test = tele_norm[test_indices,]
+# Selects 10000 random rows for test data
+set.seed(12345)
+test_set <- sample(1:nrow(tele_norm), 10000)
+# Depending on R-version and computer, different rows may be selected.
+# If that happens, results are different.
+
+# Create a train set and test set
+#First the predictors - all columns except the yyes column
+tele_train <- tele_norm[-test_set, -match("yyes",names(tele_norm))]
+tele_test <- tele_norm[test_set, -match("yyes",names(tele_norm))]
+
+#Now the response (aka Labels) - only the yyes column
+tele_train_labels <- tele_norm[-test_set, "yyes"]
+tele_test_labels <- tele_norm[test_set, "yyes"]
 ```
 
 
+# Logarithmic, KNN, and ANN
+
+## Separate Clusters
+
+```{r}
+# Get clusters 1, 3, and 4 with logical indexing
+tele_cluster_1 = tele[tele$cluster == 1,]
+tele_cluster_3 = tele[tele$cluster == 3,]
+tele_cluster_4 = tele[tele$cluster == 4,]
+
+# This is the binary versions of all factors
+tele_cluster_1_mm = telemm[telemm$cluster == 1,]
+tele_cluster_3_mm = telemm[telemm$cluster == 3,]
+tele_cluster_4_mm = telemm[telemm$cluster == 4,]
+
+# This is the binary versions of all factors
+tele_cluster_1_norm = tele_norm[tele_norm$cluster == 1,]
+tele_cluster_3_norm = tele_norm[tele_norm$cluster == 3,]
+tele_cluster_4_norm = tele_norm[tele_norm$cluster == 4,]
+# Clusters 2 and 5 are already above 17%
+```
+
+
+## Cluster 1
+
+### Creating Test and Train Data
+```{r}
+set.seed(0)
+test_indices_1 <- sample(1:nrow(tele_cluster_1_norm), 2500)
+
+# Create a train set and test set
+#First the predictors - all columns except the yyes column
+tc1_train <- tele_cluster_1_norm[-test_indices_1, -match("yyes",names(tele_cluster_1_norm))]
+tc1_test <- tele_cluster_1_norm[test_indices_1, -match("yyes",names(tele_cluster_1_norm))]
+
+#Now the response (aka Labels) - only the yyes column
+tc1_train_labels <- tele_cluster_1_norm[-test_indices_1, "yyes"]
+tc1_test_labels <- tele_cluster_1_norm[test_indices_1, "yyes"]
+```
+
+### Logistic
+```{r}
+tc1_log = glm(formula = y ~ .,
+              data = tele_cluster_1[-test_indices_1,],
+              family = "binomial")
+
+tc1_log_model = predict.glm(tc1_log,
+              newdata = tele_cluster_1[test_indices_1,],
+              type = "response")
+tc1_log_model = ifelse(tc1_log_model > 0.5, 1, 0)
+
+CrossTable(x = tc1_test_labels, y = tc1_log_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc1_log_model),
+                as.factor(tc1_test_labels))
+```
+
+### K-Nearest Neighbors
+```{r}
+tc1_knn_model = knn(train = tc1_train, test = tc1_test,
+                      cl = tc1_train_labels, k = 101)
+
+CrossTable(x = tc1_test_labels, y = tc1_knn_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc1_knn_model), as.factor(tc1_test_labels))
+```
+
+### Artificial Neural Net
 ```{r, cache = TRUE}
-# answerModel = neuralnet(formula = yyes ~ .,
-#                         data = tele_train,
-#                         hidden = 7)
+tc1_train_with_yyes = tc1_train
+tc1_train_with_yyes$yyes =
+  tele_cluster_1_norm[-test_indices_1,]$yyes
+
+tc1_ann = neuralnet(formula = yyes ~ .,
+                        data = tc1_train_with_yyes,
+                        hidden = 3)
 ```
 
-```{r}
-#plot(answerModel)
-```
 
 ```{r}
-# predictionANN = predict(answerModel, newdata = tele_test,
-#                         type = "response")
-# 
-# predictionANN = ifelse(predictionANN >= 0.25, 1, 0)
-# 
-# tele_label = tele_test[1:nrow(tele_test), "yyes"]
-# 
-# CrossTable(x = tele_label, y = predictionANN, 
-#            prop.chisq=FALSE)
-# 
-# confusionMatrix(as.factor(predictionANN), as.factor(tele_label))
+tc1_ann_model = predict(tc1_ann, newdata = tc1_test,
+                        type = "response")
+
+tc1_ann_model = ifelse(tc1_ann_model > 0.5, 1, 0)
+
+CrossTable(x = tc1_test_labels, y = tc1_ann_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc1_ann_model), as.factor(tc1_test_labels))
+```
+
+### Combine Models
+
+```{r}
+# Add 3 models together to count "votes" for Yes
+tc1_knn_model = as.numeric(tc1_knn_model)
+tc1_combine_model = tc1_ann_model + tc1_knn_model + tc1_log_model
+tc1_combine_model = ifelse(tc1_combine_model >= 2, 1, 0)
+
+CrossTable(x = tc1_test_labels, y = tc1_combine_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc1_combine_model), as.factor(tc1_test_labels))
+```
+
+## Cluster 3
+
+### Creating Test and Train Data
+```{r}
+set.seed(0)
+test_indices_3 <- sample(1:nrow(tele_cluster_3_norm), 600)
+
+# Create a train set and test set
+#First the predictors - all columns except the yyes column
+tc3_train <- tele_cluster_3_norm[-test_indices_3, -match("yyes",names(tele_cluster_3_norm))]
+tc3_test <- tele_cluster_3_norm[test_indices_3, -match("yyes",names(tele_cluster_3_norm))]
+
+#Now the response (aka Labels) - only the yyes column
+tc3_train_labels <- tele_cluster_3_norm[-test_indices_3, "yyes"]
+tc3_test_labels <- tele_cluster_3_norm[test_indices_3, "yyes"]
+```
+
+### Logistic
+```{r}
+tc3_log = glm(formula = y ~ .,
+              data = tele_cluster_3[-test_indices_3,],
+              family = "binomial")
+
+tc3_log_model = predict.glm(tc3_log,
+              newdata = tele_cluster_3[test_indices_3,],
+              type = "response")
+tc3_log_model = ifelse(tc3_log_model > 0.5, 1, 0)
+
+CrossTable(x = tc3_test_labels, y = tc3_log_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc3_log_model),
+                as.factor(tc3_test_labels))
+```
+
+### K-Nearest Neighbors
+```{r}
+tc3_knn_model = knn(train = tc3_train, test = tc3_test,
+                      cl = tc3_train_labels, k = 53)
+
+CrossTable(x = tc3_test_labels, y = tc3_knn_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc3_knn_model), as.factor(tc3_test_labels))
+```
+
+### Artificial Neural Net
+```{r, cache = TRUE}
+tc3_train_with_yyes = tc3_train
+tc3_train_with_yyes$yyes =
+  tele_cluster_3_norm[-test_indices_3,]$yyes
+
+tc3_ann = neuralnet(formula = yyes ~ .,
+                        data = tc3_train_with_yyes,
+                        hidden = 3)
+```
+
+
+```{r}
+tc3_ann_model = predict(tc3_ann, newdata = tc3_test,
+                        type = "response")
+
+tc3_ann_model = ifelse(tc3_ann_model > 0.5, 1, 0)
+
+CrossTable(x = tc3_test_labels, y = tc3_ann_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc3_ann_model), as.factor(tc3_test_labels))
+```
+
+### Combine Models
+
+```{r}
+# Add 3 models together to count "votes" for Yes
+tc3_knn_model = as.numeric(tc3_knn_model)
+tc3_combine_model = tc3_ann_model + tc3_knn_model + tc3_log_model
+tc3_combine_model = ifelse(tc3_combine_model >= 2, 1, 0)
+
+CrossTable(x = tc3_test_labels, y = tc3_combine_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc3_combine_model), as.factor(tc3_test_labels))
+```
+
+## Cluster 4
+
+### Creating Test and Train Data
+```{r}
+set.seed(0)
+test_indices_4 <- sample(1:nrow(tele_cluster_4_norm), 5500)
+
+# Create a train set and test set
+#First the predictors - all columns except the yyes column
+tc4_train <- tele_cluster_4_norm[-test_indices_4, -match("yyes",names(tele_cluster_4_norm))]
+tc4_test <- tele_cluster_4_norm[test_indices_4, -match("yyes",names(tele_cluster_4_norm))]
+
+#Now the response (aka Labels) - only the yyes column
+tc4_train_labels <- tele_cluster_4_norm[-test_indices_4, "yyes"]
+tc4_test_labels <- tele_cluster_4_norm[test_indices_4, "yyes"]
+```
+
+### Logistic
+```{r}
+tc4_log = glm(formula = y ~ .,
+              data = tele_cluster_4[-test_indices_4,],
+              family = "binomial")
+
+tc4_log_model = predict.glm(tc4_log,
+              newdata = tele_cluster_4[test_indices_4,],
+              type = "response")
+tc4_log_model = ifelse(tc4_log_model > 0.5, 1, 0)
+
+CrossTable(x = tc4_test_labels, y = tc4_log_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc4_log_model),
+                as.factor(tc4_test_labels))
+```
+
+### K-Nearest Neighbors
+```{r}
+tc4_knn_model = knn(train = tc4_train, test = tc4_test,
+                      cl = tc4_train_labels, k = 47)
+
+CrossTable(x = tc4_test_labels, y = tc4_knn_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc4_knn_model), as.factor(tc4_test_labels))
+```
+
+### Artificial Neural Net
+```{r, cache = TRUE}
+tc4_train_with_yyes = tc4_train
+tc4_train_with_yyes$yyes =
+  tele_cluster_4_norm[-test_indices_4,]$yyes
+
+tc4_ann = neuralnet(formula = yyes ~ .,
+                        data = tc4_train_with_yyes,
+                        hidden = 3)
+```
+
+
+```{r}
+tc4_ann_model = predict(tc4_ann, newdata = tc4_test,
+                        type = "response")
+
+tc4_ann_model = ifelse(tc4_ann_model > 0.5, 1, 0)
+
+CrossTable(x = tc4_test_labels, y = tc4_ann_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc4_ann_model), as.factor(tc4_test_labels))
+```
+
+### Combine Models
+
+```{r}
+# Add 3 models together to count "votes" for Yes
+tc4_knn_model = as.numeric(tc4_knn_model)
+tc4_combine_model = tc4_ann_model + tc4_knn_model + tc4_log_model
+tc4_combine_model = ifelse(tc4_combine_model >= 2, 1, 0)
+
+CrossTable(x = tc4_test_labels, y = tc4_combine_model,
+           prop.chisq=FALSE)
+
+confusionMatrix(as.factor(tc4_combine_model), as.factor(tc4_test_labels))
+```
+
+# Step 3: Combine Everything
+
+```{r}
 
 ```
 
