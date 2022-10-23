@@ -179,6 +179,7 @@ tc4_test_labels_norm =
 
 ### Logistic
 ```{r}
+
 tc1_log = glm(formula = y ~ .,
               data = tc1_train_reg,
               family = "binomial")
@@ -230,7 +231,9 @@ tc1_combine_model = ifelse(tc1_combine_model >= 2, 1, 0)
 
 ### Logistic
 ```{r}
-tc3_log = glm(formula = y ~ .,
+
+#removed job since it doesn't have more than one value
+tc3_log = glm(formula = y ~ age + marital + education + default + housing + loan + contact + month + day_of_week + campaign + previous + poutcome + emp.var.rate + cons.price.idx + cons.conf.idx + euribor3m + nr.employed + pdaysdummy + cluster,
               data = tc3_train_reg,
               family = "binomial")
 
@@ -281,7 +284,9 @@ tc3_combine_model = ifelse(tc3_combine_model >= 2, 1, 0)
 
 ### Logistic
 ```{r}
-tc4_log = glm(formula = y ~ .,
+
+#removed poutcome since it doesn't have more than one value
+tc4_log = glm(formula = y ~ age + job + marital + education + default + housing + loan + contact + month + day_of_week + campaign + previous + emp.var.rate + cons.price.idx + cons.conf.idx + euribor3m + nr.employed + pdaysdummy + cluster,
               data = tc4_train_reg,
               family = "binomial")
 
