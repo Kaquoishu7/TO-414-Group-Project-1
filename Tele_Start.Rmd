@@ -5,7 +5,7 @@ date: "10/22/2022"
 output:
   html_document:
     toc: true
-    theme: readable
+    theme: united
     highlight: tango
     code_folding: show
 ---
@@ -233,9 +233,13 @@ tc1_combine_model = ifelse(tc1_combine_model >= 2, 1, 0)
 ```{r}
 
 #removed job since it doesn't have more than one value
-tc3_log = glm(formula = y ~ age + marital + education + default + housing + loan + contact + month + day_of_week + campaign + previous + poutcome + emp.var.rate + cons.price.idx + cons.conf.idx + euribor3m + nr.employed + pdaysdummy + cluster,
-              data = tc3_train_reg,
-              family = "binomial")
+tc3_log = glm(formula = y ~ age + marital + education + default +
+                housing + loan + contact + month + day_of_week +
+                campaign + previous + poutcome + emp.var.rate +
+                cons.price.idx + cons.conf.idx + euribor3m +
+                nr.employed + pdaysdummy + cluster,
+                data = tc3_train_reg,
+                family = "binomial")
 
 tc3_log_model = predict.glm(tc3_log,
               newdata = tc3_test_reg,
@@ -287,9 +291,13 @@ tc3_combine_model = ifelse(tc3_combine_model >= 2, 1, 0)
 ```{r}
 
 #removed poutcome since it doesn't have more than one value
-tc4_log = glm(formula = y ~ age + job + marital + education + default + housing + loan + contact + month + day_of_week + campaign + previous + emp.var.rate + cons.price.idx + cons.conf.idx + euribor3m + nr.employed + pdaysdummy + cluster,
-              data = tc4_train_reg,
-              family = "binomial")
+tc4_log = glm(formula = y ~ age + job + marital + education +
+                default + housing + loan + contact + month +
+                day_of_week + campaign + previous + emp.var.rate +
+                cons.price.idx + cons.conf.idx + euribor3m +
+                nr.employed + pdaysdummy + cluster,
+                data = tc4_train_reg,
+                family = "binomial")
 
 tc4_log_model = predict.glm(tc4_log,
               newdata = tc4_test_reg,
@@ -344,11 +352,19 @@ tc4_combine_model = ifelse(tc4_combine_model >= 2, 1, 0)
 
 ```{r}
 # final model is first a copy of tc1 combine model
-# so that final model is the correct length
+# so that final model is at a least a list of some arbitrary length
 final_model = tc1_combine_model
 # Make full combine model filled with zeroes
-final_model[final_model == 0] = 0
-
+for (i in 1:10000) {
+  final_model[i] = 0
+}
+final_model = as.data.frame(final_model)
+counter1 = 1
+counter3 = 1
+counter4 = 1
+tc1df = as.data.frame(tc1_combine_model)
+tc3df = as.data.frame(tc3_combine_model)
+tc4df = as.data.frame(tc4_combine_model)
 for (i in 1:nrow(final_model)) {
   # Call everyone in clusters 2 and 5
   if (tele_test_reg$cluster[i] == 2 |
@@ -357,19 +373,67 @@ for (i in 1:nrow(final_model)) {
   }
   # Use the model predictions for remaining clusters
   else if (tele_test_reg$cluster[i] == 1) {
-    final_model[i] = tc1_combine_model[i]
+    final_model[i] = tc1df$V1[counter1]
+    counter1 = counter1 + 1
   }
   else if (tele_test_reg$cluster[i] == 3) {
-    final_model[i] = tc3_combine_model[i]
+    final_model[i] = tc3df$V1[counter3]
+    counter3 = counter3 + 1
   }
   else if (tele_test_reg$cluster[i] == 4) {
-    final_model[i] = tc4_combine_model[i]
+    final_model[i] = tc4df$V1[counter4]
+    counter4 = counter4 + 1
   }
 }
 
-# CrossTable(x = tc4_test_labels, y = tc4_combine_model,
-#            prop.chisq=FALSE)
-# confusionMatrix(as.factor(tc4_combine_model),
-#                 as.factor(tc4_test_labels))
+fm = as.matrix(final_model[1,])
+fm = as.data.frame(fm)
+fm = t(fm)
+fm = as.data.frame(fm)
+fm$`1` = as.factor(fm$`1`)
+
+CrossTable(x = tele_test_labels_norm, y = fm$`1`,
+           prop.chisq=FALSE)
+confusionMatrix(fm$`1`,
+                as.factor(tele_test_labels_norm))
 ```
 
+# Step 4: Conclusion
+
+## Overview
+
+* Cost Data: Each call costs $1 to make inclusive of all direct and indirect costs and overheads.
+
+* Revenue Data: Each successful call leads to $6 in revenue. Unsuccessful calls of course result in no revenue. There is no other cost except the call center cost.
+
+* Goal: Ensure the call center is not generating a loss. Call centers from a business perspective are not meant to be profitable; they just need to break even as a bare minimum.
+
+## Cost-Benefit Analysis
+
+### Current
+
+* Calls = 41,188
+* Cost per call = $1
+* Total cost = $41,188
+* Successful calls = 4,640
+* Total revenue = 4,640 * $6 = $27,840
+* Total loss = $27,840 - $41,188 = ($13,348)
+* Current Success Rate = 4,640 calls / 41,188 calls * 100% = 11.26542%
+* Break Even Success Rate = $1 / $6 * 100% = 16.67% = ~17% 
+
+### Recommendation
+
+* Calls = 1,495
+* Cost per call = $1
+* Total cost = $1,495
+* Successful calls = 312
+* Total revenue = 312 * $6 = $1,872
+* Total profit = $1,872 -  $1,495 = $377
+* New success rate = 312 calls / 1,495 class * 100% = 20.8696%  
+  
+
+Thus, we recommend the new model since it has a 20.8696% success rate, which is greater than the break-even threshold of 17%. Our recommendation will generate $377 of profit, reaching the goal of not operating at a loss. This model divides the data into 5 clusters, after which it generates a logistic regression model, a kNN model, and ANN model for all underperforming clusters. Of those three models, for each cluster, a combined model is created using a majority-voting scheme. In the end, if a data point belongs to a cluster that is over a 17% success rate (cluster 2 has ~20%; cluster 5 has ~30%), then it automatically recommends calling the person associated with that data point. Otherwise, it uses the combined model’s recommendation associated with the cluster to which that data point belongs.
+
+## Choosing the Best Model
+
+From a managerial perspective, it is best to use the combined model. The combined model uses more information to make a prediction since it is based on a majority prediction of the KNN, logistic regression, and ANN models. This allows managers to improve the allocation of resources by only calling customers that two of the three models have predicted will make a purchase. Furthermore, each model when used independently has their own strengths and weaknesses. The logistic model is great at identifying strong correlations between various variables, but they need not be a causal link. In addition, the various interaction terms can be difficult to pinpoint with too many terms leading to overfitting, and the amount of variables to take into account can be difficult for the designer of the logistic model. The KNN model is simple and useful, but it first assumes that nearby data points have similar outcomes, and second threads a fine line between overfitting and underfitting. The ANN model is accurate, but it comes at the cost of complexity, time, and difficulty in tuning. As a whole, both the ANN and logistic models have an extra step where the designer has to determine a threshold upon which a value corresponds to 1 or 0, which can involve tedious tuning. Since each of these models have their own benefits and drawbacks, a combined model incorporates the strengths of all three models to create an overall optimal prediction.
