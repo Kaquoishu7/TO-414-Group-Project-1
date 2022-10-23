@@ -260,7 +260,8 @@ tc3_train_with_yyes$yyes = as.numeric(tc3_train_reg$y) - 1
 
 tc3_ann = neuralnet(formula = yyes ~ .,
                         data = tc3_train_with_yyes,
-                        hidden = 3)
+                        hidden = 3, stepmax = 1e+05,
+                        threshold = 0.1)
 ```
 
 
@@ -311,6 +312,12 @@ tc4_knn_model = knn(train = tc4_train_norm,
 tc4_train_with_yyes = tc4_train_norm
 tc4_train_with_yyes$yyes = as.numeric(tc4_train_reg$y) - 1
 
+# Take small subset of data for training
+set.seed(0)
+subsetIndices = sample(1:nrow(tc4_train_with_yyes), 7000)
+
+tc4_train_with_yyes = tc4_train_with_yyes[subsetIndices,]
+
 tc4_ann = neuralnet(formula = yyes ~ .,
                         data = tc4_train_with_yyes,
                         hidden = 3)
@@ -342,7 +349,7 @@ final_model = tc1_combine_model
 # Make full combine model filled with zeroes
 final_model[final_model == 0] = 0
 
-for (i in 1:nrows(final_model)) {
+for (i in 1:nrow(final_model)) {
   # Call everyone in clusters 2 and 5
   if (tele_test_reg$cluster[i] == 2 |
       tele_test_reg$cluster[i] == 5) {
@@ -359,5 +366,10 @@ for (i in 1:nrows(final_model)) {
     final_model[i] = tc4_combine_model[i]
   }
 }
+
+# CrossTable(x = tc4_test_labels, y = tc4_combine_model,
+#            prop.chisq=FALSE)
+# confusionMatrix(as.factor(tc4_combine_model),
+#                 as.factor(tc4_test_labels))
 ```
 
